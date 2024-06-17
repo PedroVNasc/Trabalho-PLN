@@ -153,3 +153,4 @@ cython_debug/
 
 *.csv
 *.tar.gz
+*.zip
