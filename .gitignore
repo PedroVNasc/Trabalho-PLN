@@ -154,3 +154,9 @@ cython_debug/
 *.csv
 *.tar.gz
 *.zip
+
+# Evita enviar a chave para o git
+.lxparser-key
+
+# Evita pensar em carregar modelos de 4Gb+
+*.gguf
