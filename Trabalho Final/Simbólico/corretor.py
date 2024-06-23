@@ -2,12 +2,13 @@ import csv
 from typing import TypedDict
 import requests
 from tqdm import tqdm
+from nltk import Tree
 
 
 class WordData(TypedDict):
     raiz: set[str]
-    grammar_class: set[str]
-    morphemes: set[str]
+    tag: set[str]
+    features: set[str]
 
 
 class Node():
@@ -72,10 +73,10 @@ class ReGra():
 
             else:
                 parent.data['raiz'] = parent.data['raiz'].union(value['raiz'])
-                parent.data['grammar_class'] = parent.data['grammar_class'].union(
-                    value['grammar_class'])
-                parent.data['morphemes'] = parent.data['morphemes'].union(
-                    value['morphemes'])
+                parent.data['tag'] = parent.data['tag'].union(
+                    value['tag'])
+                parent.data['features'] = parent.data['features'].union(
+                    value['features'])
 
             return
 
@@ -206,7 +207,7 @@ class Corretor():
             'id': 0,
             'params': {
                 'text': text,
-                'format': 'table',
+                'format': 'parentheses',
                 'key': self.LXPARSER_WS_API_KEY,
             },
         }
@@ -218,18 +219,15 @@ class Corretor():
         if "error" in response_data:
             raise WSException(response_data["error"])
 
-        result = response_data["result"].split('\n')
+        tree = Tree.fromstring(response_data["result"])
 
         # Converte para uma lista de tuplas
-        lx_parsed = []
-        for r in result:
-            r = r.split('\t')
-            r[1] = r[1].replace(')', '').split('(')[-1].replace('*', '')
+        word_pos = tree.pos()
 
-            if len(r) > 1 and r[1] != 'PNT':
-                lx_parsed.append((r[0], self.symbol_corvertion[r[1]]))
+        lx_parsed = [[x[0], self.symbol_corvertion[x[1]]] for x in word_pos if x[1] in self.symbol_corvertion]
+        lx_parsed = [x for x in lx_parsed if x[0][0].isalpha()]
 
-        return lx_parsed
+        return lx_parsed, tree
 
     def __load_dicionary__(self, path: str):
         dictionary = ReGra()
@@ -244,11 +242,11 @@ class Corretor():
             for row in rd:
                 word = row[0]
                 raiz = [row[1]]
-                grammar_class = [row[2]]
-                morphemes = [x for x in row[3].split('|') if x]
+                tag = [row[2]]
+                features = [x for x in row[3].split('|') if x]
 
                 dictionary[word] = WordData(
-                    raiz=set(raiz), grammar_class=set(grammar_class), morphemes=set(morphemes))
+                    raiz=set(raiz), tag=set(tag), features=set(features))
 
                 progress.update(1)
 
@@ -275,11 +273,15 @@ class Corretor():
 
             if len(classes) == 0:
                 # Para o caso de ser um nome
-                if 'Unknown' in dict_parsed[i][1] and 'NOUN' in lx_parsed[i][1]:
-                    classes = set(lx_parsed[i][1])
+                if 'Unknown' in dict_parsed[i][1]:
+                    if 'NOUN' in lx_parsed[i][1]:
+                        classes = set(lx_parsed[i][1])
+
+                    else:
+                        classes = set(['ERROR', lx_parsed[i][1][0]])
 
                 else:
-                    classes = set(['ERROR', lx_parsed[i][1][0]])
+                    classes = dict_parsed[i][1]
 
             aligned_classes.append([word, classes])
 
@@ -293,13 +295,12 @@ class Corretor():
             result[word] = self.dictionary[word]
 
             if result[word] is None:
-                result[word] = {'raiz': set(['Unknown']), 'grammar_class': set(
-                    ['Unknown']), 'morphemes': set(['Unknown'])}
+                result[word] = {'raiz': set(['Unknown']), 'tag': set(
+                    ['Unknown']), 'features': set(['Unknown'])}
 
-        # print(result.items())
-        return [[x[0], x[1]['grammar_class']] for x in result.items()]
+        return [[x[0], x[1]['tag']] for x in result.items()]
 
-    def __get_corrections__(self, word: str, grammar_class: str):
+    def __get_corrections__(self, word: str, tag: str):
         word = clean_text(word)
         p = self.dictionary.get_parent(word)
 
@@ -307,33 +308,100 @@ class Corretor():
         if len(p.head) > 2:
             p = self.dictionary.get_parent(p.head[:-2])
 
-        children = self.dictionary.get_children(p, max_depth=4.0)
+        max_depth = max(len(word) - len(p.head) + 2, 4.0)
+
+        children = self.dictionary.get_children(p, max_depth=max_depth)
 
         corrections = []
         for c in children:
-            if grammar_class == 'ANY' or grammar_class in self.dictionary[c]['grammar_class']:
+            if tag == 'ANY' or tag in self.dictionary[c]['tag']:
                 corrections.append(c)
 
         corrections.sort(key=lambda x: levenshtein_distance(word, x))
+
         return corrections[:10]
+
+    def __extract_details__(self, details: set[str]):
+        details_dict = {}
+
+        for x in details:
+            if x == '_':
+                continue
+
+            char, value = x.split('=')
+            if char in details_dict:
+                details_dict[char].append(value)
+            else:
+                details_dict[char] = [value]
+
+        return details_dict
+
+    def __prune_corrections__(self, corrections, tree: Tree):
+        # Extrai os detalhes
+        details = set()
+        for x in tree.leaves():
+            d = self.dictionary[x]
+
+            if d is not None:
+                details = details.union(d['features'])
+
+        # Condensa as palavras que têm a mesma raiz
+        same_root = {}
+        for x in corrections:
+            roots = self.dictionary[x]['raiz']
+
+            for root in roots:
+                if root in same_root:
+                    same_root[root].append(x)
+                else:
+                    same_root[root] = [x]
+
+        # Seleciona as palavras que possuem maior similaridade com o resto da frase
+        characteristics = self.__extract_details__(details)
+        pruned_corrections = []
+        for _, similar_words in same_root.items():
+            if len(similar_words) == 1:
+                pruned_corrections.append(similar_words[0])
+                continue
+
+            score = {}
+            best_combination = 0
+            for word in similar_words:
+                score[word] = 0
+                word_details = self.__extract_details__(
+                    self.dictionary[word]['features'])
+
+                for char, values in word_details.items():
+                    if values[0] in characteristics[char]:
+                        score[word] += 1
+
+                if best_combination < score[word]:
+                    best_combination = score[word]
+
+            for word in similar_words:
+                if score[word] == best_combination:
+                    pruned_corrections.append(word)
+
+        return pruned_corrections
 
     def corrigir_texto(self, texto: str):
         dict_parsed = self.__parsing__(texto)
-        lx_parsed = self.__lxparse__(texto)
+        lx_parsed, tree = self.__lxparse__(texto)
+        tree.pretty_print()
+
         aligned_classes = self.__aligning__(dict_parsed, lx_parsed)
 
         corrections = {}
         for word in aligned_classes:
             if 'ERROR' in word[1]:
-                corrections[word[0]] = self.__get_corrections__(
+                subs = self.__get_corrections__(
                     word[0], list(word[1] - {'ERROR'})[0])
 
-                if corrections[word[0]] == []:
-                    corrections[word[0]] = self.__get_corrections__(
-                        word[0], 'ANY')
+                if subs == []:
+                    subs = self.__get_corrections__(word[0], 'ANY')
 
-                print(list(word[1] - {'ERROR'})[0])
-                print(corrections[word[0]])
+                corrections[word[0]] = self.__prune_corrections__(
+                    subs, tree)
 
             else:
                 corrections[word[0]] = None
