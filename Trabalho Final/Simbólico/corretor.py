@@ -224,8 +224,15 @@ class Corretor():
         # Converte para uma lista de tuplas
         word_pos = tree.pos()
 
-        lx_parsed = [[x[0], self.symbol_corvertion[x[1]]] for x in word_pos if x[1] in self.symbol_corvertion]
-        lx_parsed = [x for x in lx_parsed if x[0][0].isalpha()]
+        result = [[x[0], self.symbol_corvertion[x[1]]] for x in word_pos if x[1] in self.symbol_corvertion]
+        
+        lx_parsed = []
+        for x in result:
+            if x[0][-1] == '_':
+                x[0] = x[0][:-1]
+
+            if x[0].isalpha():
+                lx_parsed.append(x)
 
         return lx_parsed, tree
 
@@ -272,13 +279,8 @@ class Corretor():
             classes = dict_parsed[i][1].intersection(set(lx_parsed[i][1]))
 
             if len(classes) == 0:
-                # Para o caso de ser um nome
                 if 'Unknown' in dict_parsed[i][1]:
-                    if 'NOUN' in lx_parsed[i][1]:
-                        classes = set(lx_parsed[i][1])
-
-                    else:
-                        classes = set(['ERROR', lx_parsed[i][1][0]])
+                    classes = set(['ERROR', lx_parsed[i][1][0]])
 
                 else:
                     classes = dict_parsed[i][1]
@@ -288,17 +290,17 @@ class Corretor():
         return aligned_classes
 
     def __parsing__(self, phrase: str):
-        phrase = clean_text(phrase)
-
-        result = {}
+        result = []
         for word in phrase.split():
-            result[word] = self.dictionary[word]
+            entry = self.dictionary[word]
 
-            if result[word] is None:
-                result[word] = {'raiz': set(['Unknown']), 'tag': set(
+            if entry is None:
+                entry = {'raiz': set(['Unknown']), 'tag': set(
                     ['Unknown']), 'features': set(['Unknown'])}
+                
+            result.append((word, entry))
 
-        return [[x[0], x[1]['tag']] for x in result.items()]
+        return [[x[0], x[1]['tag']] for x in result]
 
     def __get_corrections__(self, word: str, tag: str):
         word = clean_text(word)
@@ -372,7 +374,7 @@ class Corretor():
                     self.dictionary[word]['features'])
 
                 for char, values in word_details.items():
-                    if values[0] in characteristics[char]:
+                    if char in characteristics.keys() and values[0] in characteristics[char]:
                         score[word] += 1
 
                 if best_combination < score[word]:
@@ -385,10 +387,8 @@ class Corretor():
         return pruned_corrections
 
     def corrigir_texto(self, texto: str):
-        dict_parsed = self.__parsing__(texto)
         lx_parsed, tree = self.__lxparse__(texto)
-        tree.pretty_print()
-
+        dict_parsed = self.__parsing__(' '.join([x[0].lower() for x in lx_parsed]))
         aligned_classes = self.__aligning__(dict_parsed, lx_parsed)
 
         corrections = {}

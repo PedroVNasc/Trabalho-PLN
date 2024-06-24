@@ -160,3 +160,5 @@ cython_debug/
 
 # Evita pensar em carregar modelos de 4Gb+
 *.gguf
+*.7z
+Trabalho Final/Dados/brwac.vert
