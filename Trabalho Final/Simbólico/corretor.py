@@ -180,13 +180,13 @@ class Corretor():
     def __init__(self, dictionary_path: str, key: str = '', symbols: dict = {}):
         self.dictionary = self.__load_dicionary__(dictionary_path)
         self.LXPARSER_WS_API_KEY = key
-        self.symbol_corvertion = symbols
+        self.symbol_convertion = symbols
 
     def setup_key(self, key: str):
         self.LXPARSER_WS_API_KEY = key
 
     def setup_symbols(self, symbols: dict):
-        self.symbol_corvertion = symbols
+        self.symbol_convertion = symbols
 
     def __lxparse__(self, text: str):
         '''
@@ -224,7 +224,7 @@ class Corretor():
         # Converte para uma lista de tuplas
         word_pos = tree.pos()
 
-        result = [[x[0], self.symbol_corvertion[x[1]]] for x in word_pos if x[1] in self.symbol_corvertion]
+        result = [[x[0], self.symbol_convertion[x[1]]] for x in word_pos if x[1] in self.symbol_convertion]
         
         lx_parsed = []
         for x in result:
@@ -374,7 +374,7 @@ class Corretor():
                     self.dictionary[word]['features'])
 
                 for char, values in word_details.items():
-                    if char in characteristics.keys() and values[0] in characteristics[char]:
+                    if values[0] in characteristics[char]:
                         score[word] += 1
 
                 if best_combination < score[word]:
