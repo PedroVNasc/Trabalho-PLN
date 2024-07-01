@@ -40,13 +40,11 @@ def rewrite(question: str, context: str | None = None, full_output=False, seed=4
     llm = load_model()
 
     context = [
-        'Você é um assistente de linguagem natural especializado em correção gramatical. Sua tarefa é corrigir os erros gramaticais das perguntas abaixo mantendo o texto o mais próximo possível do original.',
+        'Você um excelente assistente que reescreve textos segundo bons padrões. Abaixo estão os textos que você deve reescrever:',
         'Q: Onde que a gente pode compraar ingressos pro show?',
         'A: Onde que a gente pode comprar ingressos pro show?',
         'Q: Por que que o céu é azul?',
         'A: Por que o céu é azul?',
-        'Q: Humn... Algu erradu. Pão naum eh gostosu',
-        'A: Humn.. Algo errado. Pão não é gostoso',
         'Q: Voce viu a nova loja que abriru na esquina?',
         'A: Você viu a nova loja que abriu na esquina?',
     ] if context is None else context
@@ -89,6 +87,7 @@ text = st.text_area('Input', key='frase',
 left_button, right_button, _ = st.columns([0.2, 0.25, 1])
 
 result = ''
+task = ''
 
 with left_button:
     if st.button('Corrigir'):
@@ -97,11 +96,25 @@ with left_button:
         result = {}
         for key, value in corrections.items():
             if value is not None:
-                print(key, value)
                 result[key] = value
+                
+        task = 'corrigir'
 
 with right_button:
     if st.button('Reescrever'):
         result = rewrite(question=text)
 
-st.write(result)
+        task = 'reescrever'
+
+if task == 'corrigir':
+    if len(result) == 0:
+        st.subheader('Nenhuma correção necessária')
+    else:
+        st.subheader('Correções idenficadas para:')
+
+        for key, value in result.items():
+            st.write(f'{key}: {value}')
+    
+elif task == 'reescrever':
+    st.subheader('Reescrição')
+    st.write(result)
