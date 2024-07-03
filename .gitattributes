@@ -1,4 +1,2 @@
 # Auto detect text files and perform LF normalization
 * text=auto
-*/*.tsv filter=lfs diff=lfs merge=lfs -text
-Trabalho[[:space:]]Final/Simbólico/portilexicon-ud.tsv filter=lfs diff=lfs merge=lfs -text

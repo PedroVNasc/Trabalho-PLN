@@ -152,6 +152,7 @@ cython_debug/
 #.idea/
 
 *.csv
+*.tsv
 *.tar.gz
 *.zip
 
