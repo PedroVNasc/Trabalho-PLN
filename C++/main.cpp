@@ -1,4 +1,3 @@
-#include "utf8.h"
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -6,37 +5,25 @@
 #include <unordered_map>
 #include <vector>
 
+#include "utf8.h"
 #include "treemap.hpp"
+#include "utils.hpp"
 
 size_t levenshteinDistance(std::string word1, std::string word2);
 
 int main() {
-    std::ifstream file("portilexicon-ud.tsv");
-    std::string str, segment;
-    std::vector<std::vector<std::string>> raw;
+    using std::string;
+    using std::vector;
 
-    // int i = 0;
-    while (std::getline(file, str)) {
-        std::stringstream stream(str);
-        std::vector<std::string> seglist;
+    vector<vector<string>> raw = readLexicon("portilexicon-ud.tsv");
+    vector<std::tuple<std::uint8_t, string>> encoding = readEncoding("encoding.txt");
 
-        while (std::getline(stream, segment, '\t')) {
-            seglist.push_back(segment);
-        }
+    Treemap treemap(encoding);
+    treemap.setup_tree(raw);
 
-        // i++;
-        raw.push_back(seglist);
-    }
+    string res = treemap.get_word("teste");
 
-    file.close();
-
-    std::unordered_map<std::string, node> map;
-    for (std::vector<std::string> data : raw) {
-        std::vector<std::string> word;
-
-        vectorizeWord(data[0], word);
-        insertWord(map, word, 0);
-    }
+    std::cout << res << std::endl;
 
     return 0;
 }
@@ -68,6 +55,3 @@ size_t levenshteinDistance(std::string word1, std::string word2) {
 
     return matrix[matrix_len - 1][matrix_len - 1];
 }
-
-// std::unordered_map<std::string, node> createMap() {
-// }
