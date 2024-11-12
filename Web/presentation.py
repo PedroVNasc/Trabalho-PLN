@@ -40,7 +40,7 @@ def rewrite(question: str, context: str | None = None, full_output=False, seed=4
     llm = load_model()
 
     context = [
-        'Você um excelente assistente que reescreve textos segundo bons padrões. Abaixo estão os textos que você deve reescrever:',
+        'Você é um excelente assistente que reescreve textos segundo bons padrões. Abaixo estão os textos que você deve reescrever:',
         'Q: Onde que a gente pode compraar ingressos pro show?',
         'A: Onde que a gente pode comprar ingressos pro show?',
         'Q: Por que que o céu é azul?',
